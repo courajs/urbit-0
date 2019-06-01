@@ -1,52 +1,39 @@
+use std::rc::Rc;
+
 #[derive(Debug)]
 enum Noun {
-    Atom(u128),
-    Cell(Box<(Noun,Noun)>),
+  Atom(u128),
+  Cell((Rc<Noun>,Rc<Noun>)),
 }
 use Noun::*;
 
 fn main() {
-    let right = Cell(Box::new((Atom(1), Atom(8))));
-    let constfn = Cell(Box::new((Atom(4), right)));
+    let right = Cell((Rc::new(Atom(1)), Rc::new(Atom(8))));
+    let constfn = Cell((Rc::new(Atom(4)), Rc::new(right)));
     dbg!(nock(&constfn));
+    dbg!(&constfn);
     // dbg!(nock(&right));
 }
 
 fn nock(n: &Noun) -> Result<&Noun, &'static str> {
     match n {
-        Atom(v) => Err("attempt to evaluate atom"),
-        Cell(b) => {
-            match **b {
-                (_, Atom(_)) => Err("attempt to apply atom as formula"),
-                (ref subject, Cell(ref b2)) => apply(subject, &b2.0, &b2.1),
+        Atom(_) => Err("attempt to evaluate atom"),
+        Cell((subject,formula)) => {
+            match **formula {
+                Atom(_) => Err("attempt to apply atom as formula"),
+                Cell((ref l, ref r)) => apply(subject, l, r),
             }
         },
     }
 }
 
-fn apply<'a>(subject: &'a Noun, op: &'a Noun, formula: &'a Noun) -> Result<&'a Noun, &'static str> {
-  Err("almost")
-}
-
-    /*
-    if let Cell(Box(subject, formula)) = n {
-        match formula {
-            Atom(_) => Err("attempt to apply atom as formula"),
-            Cell(Cell(_,_), _) => Err("autocons is not yet implemented"),
-            Cell(Atom(op), body) => run_op(subject, op, body),
-        }
-    } else {
-        Err("attempt to evaluate atom")
+fn apply<'a>(subject: &'a Noun, head: &'a Noun, tail: &'a Noun) -> Result<&'a Noun, &'static str> {
+    match head {
+      Cell(_) => Err("autocons not implemented"),
+      Atom(1) => Ok(tail),
+      Atom(_) => Err("unimplemented opcode"),
     }
 }
-
-fn run_op(subject: &Noun, op: u128, body: &Noun) {
-    match op {
-        1 => Ok(body),
-        _ => Err("unimplemented opcode"),
-    }
-}
-*/
 
 
 /*
