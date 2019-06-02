@@ -6,12 +6,12 @@ use std::rc::Rc;
 
 
 macro_rules! noun {
-    () => {};
-    ($it:literal) => { Rc::new(Noun::Atom($it)) };
-    ($it:literal $($rest:tt)*) => { Rc::new(Noun::Cell((noun!($it), noun!($($rest)*)))) };
-    ([$($sub:tt)*] $($rest:tt)*) => { Rc::new(Noun::Cell((noun!($($sub)*), noun!($($rest)*)))) };
-    (($($sub:tt)*) $($rest:tt)*) => { noun!([$($sub)*] $($rest)*) };
-    ({$($sub:tt)*} $($rest:tt)*) => { noun!([$($sub)*] $($rest)*) };
+  () => {};
+  ($it:literal) => { Rc::new(Noun::Atom($it)) };
+  ($it:literal $($rest:tt)*) => { Rc::new(Noun::Cell((noun!($it), noun!($($rest)*)))) };
+  ([$($sub:tt)*] $($rest:tt)*) => { Rc::new(Noun::Cell((noun!($($sub)*), noun!($($rest)*)))) };
+  (($($sub:tt)*) $($rest:tt)*) => { noun!([$($sub)*] $($rest)*) };
+  ({$($sub:tt)*} $($rest:tt)*) => { noun!([$($sub)*] $($rest)*) };
 }
 
 
@@ -38,7 +38,7 @@ fn main() {
 
   // 1, constant
   // [4 [1 8]] -> 8
-  // let n = noun![4 1 8]
+  // let n = noun![4 1 8];
 
 
   // 3, depth
@@ -50,28 +50,37 @@ fn main() {
 
 }
 
-fn nock(n: &Rc<Noun>) -> Result<Rc<Noun>, &'static str> {
-    match **n {
-        Atom(_) => Err("attempt to evaluate atom"),
-        Cell((ref subject, ref formula)) => {
-            match **formula {
-                Atom(_) => Err("attempt to apply atom as formula"),
-                Cell((ref l, ref r)) => apply(subject, l, r),
-            }
-        },
-    }
+type EvalResult = Result<Rc<Noun>, &'static str>;
+
+fn nock(n: &Rc<Noun>) -> EvalResult {
+  match **n {
+    Atom(_) => Err("attempt to evaluate atom"),
+    Cell((ref subject, ref formula)) => apply(subject, formula)
+  }
 }
 
-fn apply(subject: &Rc<Noun>, head: &Rc<Noun>, tail: &Rc<Noun>) -> Result<Rc<Noun>, &'static str> {
-    match **head {
-      Cell(_) => Err("autocons not implemented"),
-      Atom(0) => slot(tail, subject),
-      Atom(1) => Ok(tail.clone()),
-      Atom(_) => Err("unimplemented opcode"),
-    }
+fn apply(subject: &Rc<Noun>, formula: &Rc<Noun>) -> EvalResult {
+  match **formula {
+    Atom(_) => Err("attempt to apply atom as a formula"),
+    Cell((ref head, ref tail)) => {
+      match **head {
+        Atom(n) => op(n, subject, tail),
+        Cell(_) => Err("autocons not implemented"),
+      }
+    },
+  }
 }
 
-fn slot(address: &Rc<Noun>, subject: &Rc<Noun>) -> Result<Rc<Noun>, &'static str> {
+fn op(instruction: u128, subject: &Rc<Noun>, args: &Rc<Noun>) -> EvalResult {
+  match instruction {
+    0 => slot(args, subject),
+    1 => Ok(args.clone()),
+    // 3 => apply(
+    _ => Err("unimplemented opcode"),
+  }
+}
+
+fn slot(address: &Rc<Noun>, subject: &Rc<Noun>) -> EvalResult {
   match **address {
     Cell(_) => Err("slot addresses must be atoms!"),
     Atom(0) => Err("slot address can't be zero!"),
@@ -79,7 +88,7 @@ fn slot(address: &Rc<Noun>, subject: &Rc<Noun>) -> Result<Rc<Noun>, &'static str
   }
 }
 
-fn slot_n(address: u128, subject: &Rc<Noun>) -> Result<Rc<Noun>, &'static str> {
+fn slot_n(address: u128, subject: &Rc<Noun>) -> EvalResult {
   if address == 1 {
     return Ok(subject.clone());
   }
@@ -97,46 +106,46 @@ fn slot_n(address: u128, subject: &Rc<Noun>) -> Result<Rc<Noun>, &'static str> {
 
 
 /*
-Nock 4K
-A noun is an atom or a cell.  An atom is a natural number.  A cell is an ordered pair of nouns.
-Reduce by the first matching pattern; variables match any noun.
+   Nock 4K
+   A noun is an atom or a cell.  An atom is a natural number.  A cell is an ordered pair of nouns.
+   Reduce by the first matching pattern; variables match any noun.
 
-*[a [b c] d]        [*[a b c] *[a d]]
+ *[a [b c] d]        [*[a b c] *[a d]]
 
-*[a 0 b]            /[b a]
-*[a 1 b]            b
-*[a 2 b c]          *[*[a b] *[a c]]
-*[a 3 b]            ?*[a b]
-*[a 4 b]            +*[a b]
-*[a 5 b c]          =[*[a b] *[a c]]
+ *[a 0 b]            /[b a]
+ *[a 1 b]            b
+ *[a 2 b c]          *[*[a b] *[a c]]
+ *[a 3 b]            ?*[a b]
+ *[a 4 b]            +*[a b]
+ *[a 5 b c]          =[*[a b] *[a c]]
 
-*[a 6 b c d]        *[a *[[c d] 0 *[[2 3] 0 *[a 4 4 b]]]]
-*[a 7 b c]          *[*[a b] c]
-*[a 8 b c]          *[[*[a b] a] c]
-*[a 9 b c]          *[*[a c] 2 [0 1] 0 b]
-*[a 10 [b c] d]     #[b *[a c] *[a d]]
+ *[a 6 b c d]        *[a *[[c d] 0 *[[2 3] 0 *[a 4 4 b]]]]
+ *[a 7 b c]          *[*[a b] c]
+ *[a 8 b c]          *[[*[a b] a] c]
+ *[a 9 b c]          *[*[a c] 2 [0 1] 0 b]
+ *[a 10 [b c] d]     #[b *[a c] *[a d]]
 
-*[a 11 [b c] d]     *[[*[a c] *[a d]] 0 3]
-*[a 11 b c]         *[a c]
+ *[a 11 [b c] d]     *[[*[a c] *[a d]] 0 3]
+ *[a 11 b c]         *[a c]
 
-*a                  *a
+ *a                  *a
 
-nock(a)             *a
-[a b c]             [a [b c]]
+ nock(a)             *a
+ [a b c]             [a [b c]]
 
-?[a b]              0
-?a                  1
-+[a b]              +[a b]
-+a                  1 + a
-=[a a]              0
-=[a b]              1
+ ?[a b]              0
+ ?a                  1
+ +[a b]              +[a b]
+ +a                  1 + a
+ =[a a]              0
+ =[a b]              1
 
-/[1 a]              a
-/[2 a b]            a
-/[3 a b]            b
-/[(a + a) b]        /[2 /[a b]]
-/[(a + a + 1) b]    /[3 /[a b]]
-/a                  /a
+ /[1 a]              a
+ /[2 a b]            a
+ /[3 a b]            b
+ /[(a + a) b]        /[2 /[a b]]
+ /[(a + a + 1) b]    /[3 /[a b]]
+ /a                  /a
 
 #[1 a b]            a
 #[(a + a) b c]      #[a [b /[(a + a + 1) c]] c]
