@@ -142,8 +142,8 @@ fn nock(n: &Rc<Noun>) -> EvalResult {
 fn apply(subject: &Rc<Noun>, formula: &Rc<Noun>) -> EvalResult {
     let (head, tail) = formula.open_or("attempt to apply atom as a formula")?;
     match **head {
-        Atom(n) => op(n, subject, tail),
-        Cell(_,_) => {
+        Atom(n) => op(n, subject, tail), // run instruction
+        Cell(_,_) => {                   // autocons
             let left = apply(subject, head)?;
             let right = apply(subject, tail)?;
             Ok(Rc::new(Cell(left, right)))
@@ -249,15 +249,12 @@ fn slot_n(address: u128, subject: &Rc<Noun>) -> EvalResult {
     if address == 1 {
         return Ok(subject.clone());
     }
-    match **subject {
-        Atom(_) => Err("nock 0 error - attempt to address through an atom"),
-        Cell(ref l, ref r) => {
-            if address%2 == 0 {
-                slot_n(address / 2, l)
-            } else {
-                slot_n(address / 2, r)
-            }
-        }
+
+    let (l, r) = subject.open_or("nock 0 error - attempt to address through an atom")?;
+    if address % 2 == 0 {
+        slot_n(address / 2, l)
+    } else {
+        slot_n(address / 2, r)
     }
 }
 
