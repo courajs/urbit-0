@@ -108,14 +108,20 @@ fn main() {
     v.push((noun![[0 [4 5]] 6 [0 2] [0 5] [0 7]], Ok("4")));
     v.push((noun![[1 [4 5]] 6 [0 2] [0 5] [0 7]], Ok("5")));
 
+    // 7, compose
     // *[a 7 b c]          *[*[a b] c]
     v.push((noun![1 7 [4 0 1] [4 0 1]], Ok("3")));
 
+    // 8, push
     // *[a 8 b c]          *[[*[a b] a] c]
     let result = noun![0 1].to_string();
     v.push((noun![0 8 [4 0 1] [[0 3] [0 2]]], Ok(&result)));
 
+    // 9, invoke
     // *[a 9 b c]          *[*[a c] 2 [0 1] 0 b]
+    v.push((noun![[1 5] 9 1 0 1], Ok("5")));
+    
+    
     // *[a 11 [b c] d]     *[[*[a c] *[a d]] 0 3]
     // *[a 11 b c]         *[a c]
 
@@ -156,8 +162,16 @@ fn op(instruction: u128, subject: &Rc<Noun>, args: &Rc<Noun>) -> EvalResult {
         6 => macro_six(subject, args),
         7 => macro_seven(subject, args),
         8 => macro_eight(subject, args),
+        9 => macro_nine(subject, args),
         _ => Err("unimplemented opcode"),
     }
+}
+
+    // *[a 9 b c]          *[*[a c] 2 [0 1] 0 b]
+fn macro_nine(subject: &Rc<Noun>, args: &Rc<Noun>) -> EvalResult {
+    let (b, c) = args.open()?;
+    let core = apply(subject, c)?;
+    apply(&core, &noun![2 [0 1] 0 b])
 }
 
 fn macro_eight(subject: &Rc<Noun>, args: &Rc<Noun>) -> EvalResult {
