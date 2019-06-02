@@ -46,7 +46,7 @@ fn main() {
   // 2, evaluate
   // *[a 2 b c]          *[*[a b] *[a c]]
   // *[[8 [4 0 1]] 2 [[0 2] [0 3]]]     =>     *[8 [4 0 1]]    =>    9
-  let n = noun![[8 [4 0 1]] 2 [[0 2] [0 3]]];
+  // let n = noun![[8 [4 0 1]] 2 [[0 2] [0 3]]];
 
   // 3, depth
   // *[a 3 b]            ?*[a b]
@@ -63,7 +63,20 @@ fn main() {
   // let n = noun![[0 0] 4 0 1];
 
 
+  // 5, equality
   // *[a 5 b c]          =[*[a b] *[a c]]
+  // [[0 0] 5 [0 2] [0 1]]  (0 == [0 0])? => false => 1
+  // [0 5 [0 1] [0 1]]  (0 == 0)? => true => 0
+  // [[0 1] 5 [0 2] [0 3]]  (0 == 1)? => false => 1
+  // [[0 0] 5 [0 1] [0 1]]  ([0 0] == [0 0])? => true => 0
+  // [[[0 0] [0 1]] 5 [0 2] [0 3]]  ([0 0] == [0 1])? => false => 1
+  // let n = noun![[0 0] 5 [0 2] [0 1]];         // 1
+  // let n = noun![0 5 [0 1] [0 1]];             // 0
+  // let n = noun![[0 1] 5 [0 2] [0 3]];         // 1
+  // let n = noun![[0 0] 5 [0 1] [0 1]];         // 0
+  let n = noun![[[0 0] [0 1]] 5 [0 2] [0 3]]; // 1
+
+
   // *[a 6 b c d]        *[a *[[c d] 0 *[[2 3] 0 *[a 4 4 b]]]]
   // *[a 7 b c]          *[*[a b] c]
   // *[a 8 b c]          *[[*[a b] a] c]
@@ -104,8 +117,34 @@ fn op(instruction: u128, subject: &Rc<Noun>, args: &Rc<Noun>) -> EvalResult {
     2 => eval(subject, args),
     3 => apply(subject, args).map(|n| depth(&n)),
     4 => apply(subject, args).and_then(inc),
+    5 => eq(subject, args),
     _ => Err("unimplemented opcode"),
   }
+}
+
+fn eq(subject: &Rc<Noun>, args: &Rc<Noun>) -> EvalResult {
+    match **args {
+        Atom(_) => Err("can't apply atom to a subject"),
+        Cell((ref get_left, ref get_right)) => {
+            let left = apply(subject, get_left)?;
+            let right = apply(subject, get_right)?;
+            if noun_eq(&left, &right) {
+                Ok(Rc::new(Atom(0)))
+            } else {
+                Ok(Rc::new(Atom(1)))
+            }
+        }
+    }
+}
+
+fn noun_eq(a: &Rc<Noun>, b: &Rc<Noun>) -> bool {
+    match (&**a,&**b) {
+        (Atom(a), Atom(b)) => a == b,
+        (Cell((ref ll, ref lr)), Cell((ref rl, ref rr))) => {
+            noun_eq(ll, rl) && noun_eq(lr, rr)
+        },
+        _ => false,
+    }
 }
 
 fn eval(subject: &Rc<Noun>, args: &Rc<Noun>) -> EvalResult {
