@@ -8,13 +8,13 @@ use std::rc::Rc;
 macro_rules! noun {
     () => {};
     ($it:literal) => { Rc::new(Noun::Atom($it)) };
-    ($it:literal $($rest:tt)*) => { Rc::new(Noun::Cell((noun!($it), noun!($($rest)*)))) };
+    ($it:literal $($rest:tt)*) => { Rc::new(Noun::Cell(noun!($it), noun!($($rest)*))) };
     ($it:ident) => { $it.clone() };
-    ($it:ident $($rest:tt)*) => { Rc::new(Noun::Cell(($it.clone(), noun!($($rest)*)))) };
+    ($it:ident $($rest:tt)*) => { Rc::new(Noun::Cell($it.clone(), noun!($($rest)*))) };
     (@$it:expr) => { $it };
-    (@$it:expr, $($rest:tt)*) => { Rc::new(Noun::Cell(($it, noun!($($rest)*)))) };
+    (@$it:expr, $($rest:tt)*) => { Rc::new(Noun::Cell($it, noun!($($rest)*))) };
     ([$($sub:tt)*]) => { noun!($($sub)*) };
-    ([$($sub:tt)*] $($rest:tt)*) => { Rc::new(Noun::Cell((noun!($($sub)*), noun!($($rest)*)))) };
+    ([$($sub:tt)*] $($rest:tt)*) => { Rc::new(Noun::Cell(noun!($($sub)*), noun!($($rest)*))) };
     (($($sub:tt)*) $($rest:tt)*) => { noun!([$($sub)*] $($rest)*) };
     ({$($sub:tt)*} $($rest:tt)*) => { noun!([$($sub)*] $($rest)*) };
 }
@@ -23,7 +23,7 @@ macro_rules! noun {
 #[derive(Debug)]
 enum Noun {
     Atom(u128),
-    Cell((Rc<Noun>,Rc<Noun>)),
+    Cell(Rc<Noun>,Rc<Noun>),
 }
 use Noun::*;
 
@@ -31,21 +31,21 @@ impl Noun {
     fn to_string(&self) -> String {
         match self {
             Atom(a) => format!("{}", a),
-            Cell((ref l, ref r)) => format!("[{} {}]", l.to_string(), r.to_string()),
+            Cell(ref l, ref r) => format!("[{} {}]", l.to_string(), r.to_string()),
         }
     }
 
     fn open(&self) -> Result<(&Rc<Noun>,&Rc<Noun>), &'static str> {
         match self {
             Atom(_) => Err("expecting cell, got atom"),
-            Cell((ref l, ref r)) => Ok((l, r)),
+            Cell(ref l, ref r) => Ok((l, r)),
         }
     }
 
     fn open_or(&self, s: &'static str) -> Result<(&Rc<Noun>,&Rc<Noun>), &'static str> {
         match self {
             Atom(_) => Err(s),
-            Cell((ref l, ref r)) => Ok((l, r)),
+            Cell(ref l, ref r) => Ok((l, r)),
         }
     }
 }
@@ -133,10 +133,10 @@ fn apply(subject: &Rc<Noun>, formula: &Rc<Noun>) -> EvalResult {
     let (head, tail) = formula.open_or("attempt to apply atom as a formula")?;
     match **head {
         Atom(n) => op(n, subject, tail),
-        Cell(_) => {
+        Cell(_,_) => {
             let left = apply(subject, head)?;
             let right = apply(subject, tail)?;
-            Ok(Rc::new(Cell((left, right))))
+            Ok(Rc::new(Cell(left, right)))
         },
     }
 }
@@ -177,7 +177,7 @@ fn eq(subject: &Rc<Noun>, args: &Rc<Noun>) -> EvalResult {
 fn noun_eq(a: &Rc<Noun>, b: &Rc<Noun>) -> bool {
     match (&**a,&**b) {
         (Atom(a), Atom(b)) => a == b,
-        (Cell((ref ll, ref lr)), Cell((ref rl, ref rr))) => {
+        (Cell(ref ll, ref lr), Cell(ref rl, ref rr)) => {
             noun_eq(ll, rl) && noun_eq(lr, rr)
         },
         _ => false,
@@ -194,20 +194,20 @@ fn eval(subject: &Rc<Noun>, args: &Rc<Noun>) -> EvalResult {
 fn depth(n: &Rc<Noun>) -> Rc<Noun> {
     match **n {
         Atom(_) => Rc::new(Atom(1)),
-        Cell(_) => Rc::new(Atom(0)),
+        Cell(_,_) => Rc::new(Atom(0)),
     }
 }
 
 fn inc(n: Rc<Noun>) -> EvalResult {
     match *n {
         Atom(m) => Ok(Rc::new(Atom(m+1))),
-        Cell(_) => Err("attempt to increment a cell"),
+        Cell(_,_) => Err("attempt to increment a cell"),
     }
 }
 
 fn slot(address: &Rc<Noun>, subject: &Rc<Noun>) -> EvalResult {
     match **address {
-        Cell(_) => Err("slot addresses must be atoms!"),
+        Cell(_,_) => Err("slot addresses must be atoms!"),
         Atom(0) => Err("slot address can't be zero!"),
         Atom(n) => slot_n(n, subject),
     }
@@ -219,7 +219,7 @@ fn slot_n(address: u128, subject: &Rc<Noun>) -> EvalResult {
     }
     match **subject {
         Atom(_) => Err("nock 0 error - attempt to address through an atom"),
-        Cell((ref l, ref r)) => {
+        Cell(ref l, ref r) => {
             if address%2 == 0 {
                 slot_n(address / 2, l)
             } else {
