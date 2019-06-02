@@ -32,59 +32,64 @@ impl Noun {
 }
 
 fn main() {
-  // [4 [1 8]] -> 8
-  // println!("{}
-  // dbg!(nock(noun![4 1 8])).unwrap();
-
+  // 0, slot
+  // [[3 4 5] 0 7] -> 5
   let n = noun![[3 4 5] 0 7];
-  println!("{} ->  {:?}", n.to_string(), nock(n).map(|n| n.to_string()));
-  // dbg!(nock(noun![[9 9] 0 2]).map(|n| n.to_string()));
-  // dbg!(format!("{:?}", nock(noun![[9 9] 0 1]).unwrap()));
+
+  // 1, constant
+  // [4 [1 8]] -> 8
+  // let n = noun![4 1 8]
+
+
+  // 3, depth
+  // [0 3 0 1] -> 1
+  // [[0 0] 3 0 1] -> 0
+  // let n = noun![0 3 0 1];
+
+  println!("{} ->  {:?}", n.to_string(), nock(&n).map(|n| n.to_string()));
 
 }
 
-fn nock(n: Rc<Noun>) -> Result<Rc<Noun>, &'static str> {
-    match *n {
+fn nock(n: &Rc<Noun>) -> Result<Rc<Noun>, &'static str> {
+    match **n {
         Atom(_) => Err("attempt to evaluate atom"),
         Cell((ref subject, ref formula)) => {
             match **formula {
                 Atom(_) => Err("attempt to apply atom as formula"),
-                Cell((ref l, ref r)) => apply(subject.clone(), l.clone(), r.clone()),
+                Cell((ref l, ref r)) => apply(subject, l, r),
             }
         },
     }
 }
 
-fn apply(subject: Rc<Noun>, head: Rc<Noun>, tail: Rc<Noun>) -> Result<Rc<Noun>, &'static str> {
-    match *head {
+fn apply(subject: &Rc<Noun>, head: &Rc<Noun>, tail: &Rc<Noun>) -> Result<Rc<Noun>, &'static str> {
+    match **head {
       Cell(_) => Err("autocons not implemented"),
       Atom(0) => slot(tail, subject),
-      Atom(1) => Ok(tail),
+      Atom(1) => Ok(tail.clone()),
       Atom(_) => Err("unimplemented opcode"),
     }
 }
 
-fn slot(address: Rc<Noun>, subject: Rc<Noun>) -> Result<Rc<Noun>, &'static str> {
-  match *address {
+fn slot(address: &Rc<Noun>, subject: &Rc<Noun>) -> Result<Rc<Noun>, &'static str> {
+  match **address {
     Cell(_) => Err("slot addresses must be atoms!"),
     Atom(0) => Err("slot address can't be zero!"),
     Atom(n) => slot_n(n, subject),
   }
 }
 
-fn slot_n(address: u128, subject: Rc<Noun>) -> Result<Rc<Noun>, &'static str> {
-  match address {
-    1 => Ok(subject),
-    n if n%2 == 0 => {
-      match *subject {
-        Atom(_) => Err("nock 0 error - attempt to address through an atom"),
-        Cell((ref l,_)) => slot_n(address / 2, l.clone()),
-      }
-    }
-    n => {
-      match *subject {
-        Atom(_) => Err("nock 0 error - attempt to address through an atom"),
-        Cell((_,ref r)) => slot_n(address / 2, r.clone()),
+fn slot_n(address: u128, subject: &Rc<Noun>) -> Result<Rc<Noun>, &'static str> {
+  if address == 1 {
+    return Ok(subject.clone());
+  }
+  match **subject {
+    Atom(_) => Err("nock 0 error - attempt to address through an atom"),
+    Cell((ref l, ref r)) => {
+      if address%2 == 0 {
+        slot_n(address / 2, l)
+      } else {
+        slot_n(address / 2, r)
       }
     }
   }
