@@ -36,7 +36,7 @@ fn main() {
   // println!("{}
   // dbg!(nock(noun![4 1 8])).unwrap();
 
-  let n = noun![[9 9] 0 2];
+  let n = noun![[3 4 5] 0 7];
   println!("{} ->  {:?}", n.to_string(), nock(n).map(|n| n.to_string()));
   // dbg!(nock(noun![[9 9] 0 2]).map(|n| n.to_string()));
   // dbg!(format!("{:?}", nock(noun![[9 9] 0 1]).unwrap()));
@@ -68,14 +68,25 @@ fn slot(address: Rc<Noun>, subject: Rc<Noun>) -> Result<Rc<Noun>, &'static str> 
   match *address {
     Cell(_) => Err("slot addresses must be atoms!"),
     Atom(0) => Err("slot address can't be zero!"),
-    Atom(1) => Ok(subject),
-    Atom(2) => {
+    Atom(n) => slot_n(n, subject),
+  }
+}
+
+fn slot_n(address: u128, subject: Rc<Noun>) -> Result<Rc<Noun>, &'static str> {
+  match address {
+    1 => Ok(subject),
+    n if n%2 == 0 => {
       match *subject {
-        Atom(_) => Err("address too deep -- cannot address past an atom"),
-        Cell((ref l,_)) => Ok(l.clone()),
+        Atom(_) => Err("nock 0 error - attempt to address through an atom"),
+        Cell((ref l,_)) => slot_n(address / 2, l.clone()),
       }
-    },
-    Atom(_) => Err("not yet implemented"),
+    }
+    n => {
+      match *subject {
+        Atom(_) => Err("nock 0 error - attempt to address through an atom"),
+        Cell((_,ref r)) => slot_n(address / 2, r.clone()),
+      }
+    }
   }
 }
 
