@@ -101,10 +101,22 @@ fn op(instruction: u128, subject: &Rc<Noun>, args: &Rc<Noun>) -> EvalResult {
   match instruction {
     0 => slot(args, subject),
     1 => Ok(args.clone()),
+    2 => eval(subject, args),
     3 => apply(subject, args).map(|n| depth(&n)),
     4 => apply(subject, args).and_then(inc),
     _ => Err("unimplemented opcode"),
   }
+}
+
+fn eval(subject: &Rc<Noun>, args: &Rc<Noun>) -> EvalResult {
+    match **args {
+        Atom(_) => Err("can't apply atom to a subject"),
+        Cell((ref get_subject, ref get_formula)) => {
+            let new_subject = apply(subject, get_subject)?;
+            let new_formula = apply(subject, get_formula)?;
+            apply(&new_subject, &new_formula)
+        }
+    }
 }
 
 fn depth(n: &Rc<Noun>) -> Rc<Noun> {
