@@ -51,34 +51,35 @@ impl Noun {
 }
 
 fn main() {
+    let mut v = Vec::new();
     // 0, slot
     // *[a 0 b]            /[b a]
     // [[3 4 5] 0 7] -> 5
-    // let n = noun![[3 4 5] 0 7];
+    v.push((noun![[3 4 5] 0 7], Ok(5)));
 
     // 1, constant
     // *[a 1 b]            b
     // [4 [1 8]] -> 8
-    // let n = noun![4 1 8];
+    v.push((noun![4 1 8], Ok(8)));
 
     // 2, evaluate
     // *[a 2 b c]          *[*[a b] *[a c]]
     // *[[8 [4 0 1]] 2 [[0 2] [0 3]]]     =>     *[8 [4 0 1]]    =>    9
-    // let n = noun![[8 [4 0 1]] 2 [[0 2] [0 3]]];
+    v.push((noun![[8 [4 0 1]] 2 [[0 2] [0 3]]], Ok(9)));
 
     // 3, depth
     // *[a 3 b]            ?*[a b]
     // [0 3 0 1] -> 1
     // [[0 0] 3 0 1] -> 0
-    // let n = noun![0 3 0 1];
-    // let n = noun![[0 0] 3 0 1];
+    v.push((noun![0 3 0 1], Ok(1)));
+    v.push((noun![[0 0] 3 0 1], Ok(0)));
 
     // 4, inc
     // [9 4 0 1] -> 10
     // [[0 0] 4 0 1] -> X
     // *[a 4 b]            +*[a b]
-    // let n = noun![9 4 0 1];
-    // let n = noun![[0 0] 4 0 1];
+    v.push((noun![2 4 0 1], Ok(3)));
+    v.push((noun![[0 0] 4 0 1], Err("nah")));
 
 
     // 5, equality
@@ -88,11 +89,11 @@ fn main() {
     // [[0 1] 5 [0 2] [0 3]]  (0 == 1)? => false => 1
     // [[0 0] 5 [0 1] [0 1]]  ([0 0] == [0 0])? => true => 0
     // [[[0 0] [0 1]] 5 [0 2] [0 3]]  ([0 0] == [0 1])? => false => 1
-    // let n = noun![[0 0] 5 [0 2] [0 1]];         // 1
-    // let n = noun![0 5 [0 1] [0 1]];             // 0
-    // let n = noun![[0 1] 5 [0 2] [0 3]];         // 1
-    // let n = noun![[0 0] 5 [0 1] [0 1]];         // 0
-    let n = noun![[[0 0] [0 1]] 5 [0 2] [0 3]]; // 1
+    v.push((noun![[0 0] 5 [0 2] [0 1]], Ok(1)));         // 1
+    v.push((noun![0 5 [0 1] [0 1]], Ok(0)));             // 0
+    v.push((noun![[0 1] 5 [0 2] [0 3]], Ok(1)));         // 1
+    v.push((noun![[0 0] 5 [0 1] [0 1]], Ok(0)));         // 0
+    v.push((noun![[[0 0] [0 1]] 5 [0 2] [0 3]], Ok(1))); // 1
 
     // 10, edit
     // *[a 10 [b c] d]     #[b *[a c] *[a d]]
@@ -102,7 +103,8 @@ fn main() {
     // *[a 6 b c d]        *[a *[[c d] 0 *[[2 3] 0 *[a 4 4 b]]]]
     // [[0 [4 5]] 6 [0 2] [0 5] [0 7]]  => 4
     // [[1 [4 5]] 6 [0 2] [0 5] [0 7]]  => 5
-    // let n = noun![[0 [4 5]] 6 [0 2] [0 5] [0 7]];
+    v.push((noun![[0 [4 5]] 6 [0 2] [0 5] [0 7]], Ok(4)));
+    v.push((noun![[1 [4 5]] 6 [0 2] [0 5] [0 7]], Ok(5)));
 
 
     // *[a 7 b c]          *[*[a b] c]
@@ -112,28 +114,24 @@ fn main() {
     // *[a 11 b c]         *[a c]
     // autocons
 
-    println!("{} ->  {:?}", n.to_string(), nock(&n).map(|n| n.to_string()));
+    for (n, expected) in v {
+        println!("{} ->  {:?}/{:?}", n.to_string(), nock(&n).map(|n| n.to_string()), expected);
+    }
 
 }
 
 type EvalResult = Result<Rc<Noun>, &'static str>;
 
 fn nock(n: &Rc<Noun>) -> EvalResult {
-    match **n {
-        Atom(_) => Err("attempt to evaluate atom"),
-        Cell((ref subject, ref formula)) => apply(subject, formula)
-    }
+    let (subject, formula) = n.open_or("attempt to evaluate atom")?;
+    apply(subject, formula)
 }
 
 fn apply(subject: &Rc<Noun>, formula: &Rc<Noun>) -> EvalResult {
-    match **formula {
-        Atom(_) => Err("attempt to apply atom as a formula"),
-        Cell((ref head, ref tail)) => {
-            match **head {
-                Atom(n) => op(n, subject, tail),
-                Cell(_) => Err("autocons not implemented"),
-            }
-        },
+    let (head, tail) = formula.open_or("attempt to apply atom as a formula")?;
+    match **head {
+        Atom(n) => op(n, subject, tail),
+        Cell(_) => Err("autocons not implemented"),
     }
 }
 
@@ -181,14 +179,10 @@ fn noun_eq(a: &Rc<Noun>, b: &Rc<Noun>) -> bool {
 }
 
 fn eval(subject: &Rc<Noun>, args: &Rc<Noun>) -> EvalResult {
-    match **args {
-        Atom(_) => Err("can't apply atom to a subject"),
-        Cell((ref get_subject, ref get_formula)) => {
-            let new_subject = apply(subject, get_subject)?;
-            let new_formula = apply(subject, get_formula)?;
-            apply(&new_subject, &new_formula)
-        }
-    }
+    let (get_subject, get_formula) = args.open_or("can't apply atom to a subject")?;
+    let new_subject = apply(subject, get_subject)?;
+    let new_formula = apply(subject, get_formula)?;
+    apply(&new_subject, &new_formula)
 }
 
 fn depth(n: &Rc<Noun>) -> Rc<Noun> {
