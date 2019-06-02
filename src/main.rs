@@ -34,7 +34,7 @@ impl Noun {
 fn main() {
   // 0, slot
   // [[3 4 5] 0 7] -> 5
-  let n = noun![[3 4 5] 0 7];
+  // let n = noun![[3 4 5] 0 7];
 
   // 1, constant
   // [4 [1 8]] -> 8
@@ -45,7 +45,15 @@ fn main() {
   // [0 3 0 1] -> 1
   // [[0 0] 3 0 1] -> 0
   // let n = noun![0 3 0 1];
+  // let n = noun![[0 0] 3 0 1];
 
+
+  // 4, inc
+  // [9 4 0 1] -> 10
+  // [[0 0] 4 0 1] -> X
+  // *[a 4 b]            +*[a b]
+  // let n = noun![9 4 0 1];
+  let n = noun![[0 0] 4 0 1];
   println!("{} ->  {:?}", n.to_string(), nock(&n).map(|n| n.to_string()));
 
 }
@@ -75,8 +83,23 @@ fn op(instruction: u128, subject: &Rc<Noun>, args: &Rc<Noun>) -> EvalResult {
   match instruction {
     0 => slot(args, subject),
     1 => Ok(args.clone()),
-    // 3 => apply(
+    3 => apply(subject, args).map(|n| depth(&n)),
+    4 => apply(subject, args).and_then(inc),
     _ => Err("unimplemented opcode"),
+  }
+}
+
+fn depth(n: &Rc<Noun>) -> Rc<Noun> {
+  match **n {
+    Atom(_) => Rc::new(Atom(1)),
+    Cell(_) => Rc::new(Atom(0)),
+  }
+}
+
+fn inc(n: Rc<Noun>) -> EvalResult {
+  match *n {
+    Atom(m) => Ok(Rc::new(Atom(m+1))),
+    Cell(_) => Err("attempt to increment a cell"),
   }
 }
 
