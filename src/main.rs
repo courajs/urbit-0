@@ -61,6 +61,10 @@ fn main() {
     // *[a 1 b]            b
     // [4 [1 8]] -> 8
     v.push((noun![4 1 8], Ok("8")));
+    
+    // autocons
+    let result = noun![4 2].to_string();
+    v.push((noun![0 [[1 4] [1 2]]], Ok(&result)));
 
     // 2, evaluate
     // *[a 2 b c]          *[*[a b] *[a c]]
@@ -80,7 +84,6 @@ fn main() {
     // *[a 4 b]            +*[a b]
     v.push((noun![2 4 0 1], Ok("3")));
     v.push((noun![[0 0] 4 0 1], Err("nah")));
-
 
     // 5, equality
     // *[a 5 b c]          =[*[a b] *[a c]]
@@ -106,15 +109,16 @@ fn main() {
     v.push((noun![[1 [4 5]] 6 [0 2] [0 5] [0 7]], Ok("5")));
 
     // *[a 7 b c]          *[*[a b] c]
+    v.push((noun![1 7 [4 0 1] [4 0 1]], Ok("3")));
+
     // *[a 8 b c]          *[[*[a b] a] c]
+    let result = noun![0 1].to_string();
+    v.push((noun![0 8 [4 0 1] [[0 3] [0 2]]], Ok(&result)));
+
     // *[a 9 b c]          *[*[a c] 2 [0 1] 0 b]
     // *[a 11 [b c] d]     *[[*[a c] *[a d]] 0 3]
     // *[a 11 b c]         *[a c]
 
-    
-    // autocons
-    let result = noun![4 2].to_string();
-    v.push((noun![0 [[1 4] [1 2]]], Ok(&result)));
 
     for (n, expected) in v {
         println!("{} ->  {:?}/{:?}", n.to_string(), nock(&n).map(|n| n.to_string()), expected);
@@ -150,8 +154,22 @@ fn op(instruction: u128, subject: &Rc<Noun>, args: &Rc<Noun>) -> EvalResult {
         4 => apply(subject, args).and_then(inc),
         5 => eq(subject, args),
         6 => macro_six(subject, args),
+        7 => macro_seven(subject, args),
+        8 => macro_eight(subject, args),
         _ => Err("unimplemented opcode"),
     }
+}
+
+fn macro_eight(subject: &Rc<Noun>, args: &Rc<Noun>) -> EvalResult {
+    let (b, c) = args.open()?;
+    let var = apply(subject, b)?;
+    apply(&noun![var subject], c)
+}
+
+fn macro_seven(subject: &Rc<Noun>, args: &Rc<Noun>) -> EvalResult {
+    let (b, c) = args.open()?;
+    let new_subject = apply(subject, b)?;
+    apply(&new_subject, c)
 }
 
 fn macro_six(subject: &Rc<Noun>, args: &Rc<Noun>) -> EvalResult {
