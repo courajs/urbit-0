@@ -11,6 +11,8 @@ macro_rules! noun {
     ($it:literal $($rest:tt)*) => { Rc::new(Noun::Cell((noun!($it), noun!($($rest)*)))) };
     ($it:ident) => { $it.clone() };
     ($it:ident $($rest:tt)*) => { Rc::new(Noun::Cell(($it.clone(), noun!($($rest)*)))) };
+    (@$it:expr) => { $it };
+    (@$it:expr, $($rest:tt)*) => { Rc::new(Noun::Cell(($it, noun!($($rest)*)))) };
     ([$($sub:tt)*]) => { noun!($($sub)*) };
     ([$($sub:tt)*] $($rest:tt)*) => { Rc::new(Noun::Cell((noun!($($sub)*), noun!($($rest)*)))) };
     (($($sub:tt)*) $($rest:tt)*) => { noun!([$($sub)*] $($rest)*) };
@@ -36,6 +38,13 @@ impl Noun {
     fn open(&self) -> Result<(&Rc<Noun>,&Rc<Noun>), &'static str> {
         match self {
             Atom(_) => Err("expecting cell, got atom"),
+            Cell((ref l, ref r)) => Ok((l, r)),
+        }
+    }
+
+    fn open_or(&self, s: &'static str) -> Result<(&Rc<Noun>,&Rc<Noun>), &'static str> {
+        match self {
+            Atom(_) => Err(s),
             Cell((ref l, ref r)) => Ok((l, r)),
         }
     }
@@ -83,7 +92,7 @@ fn main() {
     // let n = noun![0 5 [0 1] [0 1]];             // 0
     // let n = noun![[0 1] 5 [0 2] [0 3]];         // 1
     // let n = noun![[0 0] 5 [0 1] [0 1]];         // 0
-    // let n = noun![[[0 0] [0 1]] 5 [0 2] [0 3]]; // 1
+    let n = noun![[[0 0] [0 1]] 5 [0 2] [0 3]]; // 1
 
     // 10, edit
     // *[a 10 [b c] d]     #[b *[a c] *[a d]]
@@ -93,7 +102,7 @@ fn main() {
     // *[a 6 b c d]        *[a *[[c d] 0 *[[2 3] 0 *[a 4 4 b]]]]
     // [[0 [4 5]] 6 [0 2] [0 5] [0 7]]  => 4
     // [[1 [4 5]] 6 [0 2] [0 5] [0 7]]  => 5
-    let n = noun![[0 [4 5]] 6 [0 2] [0 5] [0 7]];
+    // let n = noun![[0 [4 5]] 6 [0 2] [0 5] [0 7]];
 
 
     // *[a 7 b c]          *[*[a b] c]
@@ -151,17 +160,13 @@ fn macro_six(subject: &Rc<Noun>, args: &Rc<Noun>) -> EvalResult {
 }
 
 fn eq(subject: &Rc<Noun>, args: &Rc<Noun>) -> EvalResult {
-    match **args {
-        Atom(_) => Err("can't apply atom to a subject"),
-        Cell((ref get_left, ref get_right)) => {
-            let left = apply(subject, get_left)?;
-            let right = apply(subject, get_right)?;
-            if noun_eq(&left, &right) {
-                Ok(Rc::new(Atom(0)))
-            } else {
-                Ok(Rc::new(Atom(1)))
-            }
-        }
+    let (get_left, get_right) = args.open()?;
+    let left = apply(subject, get_left)?;
+    let right = apply(subject, get_right)?;
+    if noun_eq(&left, &right) {
+        Ok(Rc::new(Atom(0)))
+    } else {
+        Ok(Rc::new(Atom(1)))
     }
 }
 
