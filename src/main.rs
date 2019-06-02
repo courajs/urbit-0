@@ -55,30 +55,30 @@ fn main() {
     // 0, slot
     // *[a 0 b]            /[b a]
     // [[3 4 5] 0 7] -> 5
-    v.push((noun![[3 4 5] 0 7], Ok(5)));
+    v.push((noun![[3 4 5] 0 7], Ok("5")));
 
     // 1, constant
     // *[a 1 b]            b
     // [4 [1 8]] -> 8
-    v.push((noun![4 1 8], Ok(8)));
+    v.push((noun![4 1 8], Ok("8")));
 
     // 2, evaluate
     // *[a 2 b c]          *[*[a b] *[a c]]
     // *[[8 [4 0 1]] 2 [[0 2] [0 3]]]     =>     *[8 [4 0 1]]    =>    9
-    v.push((noun![[8 [4 0 1]] 2 [[0 2] [0 3]]], Ok(9)));
+    v.push((noun![[8 [4 0 1]] 2 [[0 2] [0 3]]], Ok("9")));
 
     // 3, depth
     // *[a 3 b]            ?*[a b]
     // [0 3 0 1] -> 1
     // [[0 0] 3 0 1] -> 0
-    v.push((noun![0 3 0 1], Ok(1)));
-    v.push((noun![[0 0] 3 0 1], Ok(0)));
+    v.push((noun![0 3 0 1], Ok("1")));
+    v.push((noun![[0 0] 3 0 1], Ok("0")));
 
     // 4, inc
     // [9 4 0 1] -> 10
     // [[0 0] 4 0 1] -> X
     // *[a 4 b]            +*[a b]
-    v.push((noun![2 4 0 1], Ok(3)));
+    v.push((noun![2 4 0 1], Ok("3")));
     v.push((noun![[0 0] 4 0 1], Err("nah")));
 
 
@@ -89,30 +89,32 @@ fn main() {
     // [[0 1] 5 [0 2] [0 3]]  (0 == 1)? => false => 1
     // [[0 0] 5 [0 1] [0 1]]  ([0 0] == [0 0])? => true => 0
     // [[[0 0] [0 1]] 5 [0 2] [0 3]]  ([0 0] == [0 1])? => false => 1
-    v.push((noun![[0 0] 5 [0 2] [0 1]], Ok(1)));         // 1
-    v.push((noun![0 5 [0 1] [0 1]], Ok(0)));             // 0
-    v.push((noun![[0 1] 5 [0 2] [0 3]], Ok(1)));         // 1
-    v.push((noun![[0 0] 5 [0 1] [0 1]], Ok(0)));         // 0
-    v.push((noun![[[0 0] [0 1]] 5 [0 2] [0 3]], Ok(1))); // 1
+    v.push((noun![[0 0] 5 [0 2] [0 1]], Ok("1")));         // 1
+    v.push((noun![0 5 [0 1] [0 1]], Ok("0")));             // 0
+    v.push((noun![[0 1] 5 [0 2] [0 3]], Ok("1")));         // 1
+    v.push((noun![[0 0] 5 [0 1] [0 1]], Ok("0")));         // 0
+    v.push((noun![[[0 0] [0 1]] 5 [0 2] [0 3]], Ok("1"))); // 1
 
     // 10, edit
     // *[a 10 [b c] d]     #[b *[a c] *[a d]]
-
 
     // 6, if/then/else
     // *[a 6 b c d]        *[a *[[c d] 0 *[[2 3] 0 *[a 4 4 b]]]]
     // [[0 [4 5]] 6 [0 2] [0 5] [0 7]]  => 4
     // [[1 [4 5]] 6 [0 2] [0 5] [0 7]]  => 5
-    v.push((noun![[0 [4 5]] 6 [0 2] [0 5] [0 7]], Ok(4)));
-    v.push((noun![[1 [4 5]] 6 [0 2] [0 5] [0 7]], Ok(5)));
-
+    v.push((noun![[0 [4 5]] 6 [0 2] [0 5] [0 7]], Ok("4")));
+    v.push((noun![[1 [4 5]] 6 [0 2] [0 5] [0 7]], Ok("5")));
 
     // *[a 7 b c]          *[*[a b] c]
     // *[a 8 b c]          *[[*[a b] a] c]
     // *[a 9 b c]          *[*[a c] 2 [0 1] 0 b]
     // *[a 11 [b c] d]     *[[*[a c] *[a d]] 0 3]
     // *[a 11 b c]         *[a c]
+
+    
     // autocons
+    let result = noun![4 2].to_string();
+    v.push((noun![0 [[1 4] [1 2]]], Ok(&result)));
 
     for (n, expected) in v {
         println!("{} ->  {:?}/{:?}", n.to_string(), nock(&n).map(|n| n.to_string()), expected);
@@ -131,7 +133,11 @@ fn apply(subject: &Rc<Noun>, formula: &Rc<Noun>) -> EvalResult {
     let (head, tail) = formula.open_or("attempt to apply atom as a formula")?;
     match **head {
         Atom(n) => op(n, subject, tail),
-        Cell(_) => Err("autocons not implemented"),
+        Cell(_) => {
+            let left = apply(subject, head)?;
+            let right = apply(subject, tail)?;
+            Ok(Rc::new(Cell((left, right))))
+        },
     }
 }
 
