@@ -9,6 +9,7 @@ macro_rules! noun {
   () => {};
   ($it:literal) => { Rc::new(Noun::Atom($it)) };
   ($it:literal $($rest:tt)*) => { Rc::new(Noun::Cell((noun!($it), noun!($($rest)*)))) };
+  ([$($sub:tt)*]) => { noun!($($sub)*) };
   ([$($sub:tt)*] $($rest:tt)*) => { Rc::new(Noun::Cell((noun!($($sub)*), noun!($($rest)*)))) };
   (($($sub:tt)*) $($rest:tt)*) => { noun!([$($sub)*] $($rest)*) };
   ({$($sub:tt)*} $($rest:tt)*) => { noun!([$($sub)*] $($rest)*) };
@@ -33,27 +34,44 @@ impl Noun {
 
 fn main() {
   // 0, slot
+  // *[a 0 b]            /[b a]
   // [[3 4 5] 0 7] -> 5
   // let n = noun![[3 4 5] 0 7];
 
   // 1, constant
+  // *[a 1 b]            b
   // [4 [1 8]] -> 8
   // let n = noun![4 1 8];
 
+  // 2, evaluate
+  // *[a 2 b c]          *[*[a b] *[a c]]
+  // *[[8 [4 0 1]] 2 [[0 2] [0 3]]]     =>     *[8 [4 0 1]]    =>    9
+  let n = noun![[8 [4 0 1]] 2 [[0 2] [0 3]]];
 
   // 3, depth
+  // *[a 3 b]            ?*[a b]
   // [0 3 0 1] -> 1
   // [[0 0] 3 0 1] -> 0
   // let n = noun![0 3 0 1];
   // let n = noun![[0 0] 3 0 1];
-
 
   // 4, inc
   // [9 4 0 1] -> 10
   // [[0 0] 4 0 1] -> X
   // *[a 4 b]            +*[a b]
   // let n = noun![9 4 0 1];
-  let n = noun![[0 0] 4 0 1];
+  // let n = noun![[0 0] 4 0 1];
+
+
+  // *[a 5 b c]          =[*[a b] *[a c]]
+  // *[a 6 b c d]        *[a *[[c d] 0 *[[2 3] 0 *[a 4 4 b]]]]
+  // *[a 7 b c]          *[*[a b] c]
+  // *[a 8 b c]          *[[*[a b] a] c]
+  // *[a 9 b c]          *[*[a c] 2 [0 1] 0 b]
+  // *[a 10 [b c] d]     #[b *[a c] *[a d]]
+  // *[a 11 [b c] d]     *[[*[a c] *[a d]] 0 3]
+  // *[a 11 b c]         *[a c]
+
   println!("{} ->  {:?}", n.to_string(), nock(&n).map(|n| n.to_string()));
 
 }
