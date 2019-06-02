@@ -1,21 +1,18 @@
+#![recursion_limit="48"]
+// #![feature(trace_macros)]
+// trace_macros!(true);
+
 use std::rc::Rc;
 
-/*
-enum NounSpec {
-  Atom(u128),
-  List(Vec<NounSpec>),
+
+macro_rules! noun {
+    () => {};
+    ($it:literal) => { Rc::new(Noun::Atom($it)) };
+    ($it:literal $($rest:tt)*) => { Rc::new(Noun::Cell((noun!($it), noun!($($rest)*)))) };
+    ([$($sub:tt)*] $($rest:tt)*) => { Rc::new(Noun::Cell((noun!($($sub)*), noun!($($rest)*)))) };
+    (($($sub:tt)*) $($rest:tt)*) => { noun!([$($sub)*] $($rest)*) };
+    ({$($sub:tt)*} $($rest:tt)*) => { noun!([$($sub)*] $($rest)*) };
 }
-fn parse(spec: NounSpec) -> Rc<Noun> {
-  match spec {
-    NounSpec::Atom(a) => Rc::new(Noun::Atom(a)),
-    NounSpec::List(v) => {
-      let mut v = v.into_iter().rev();
-      let first = parse(v.next().unwrap());
-      v.fold(first, |done, next| Rc::new(Cell((parse(next), done))))
-    }
-  }
-}
-*/
 
 
 #[derive(Debug)]
@@ -25,31 +22,34 @@ enum Noun {
 }
 use Noun::*;
 
-fn main() {
-    let const8 = Rc::new(Cell((Rc::new(Atom(1)), Rc::new(Atom(8)))));
-    let atomsubj = Rc::new(Atom(4));
-    let cellsubj = Rc::new(Cell((Rc::new(Atom(6)),Rc::new(Atom(9)))));
-
-    // [4 [1 8]] -> 8
-    dbg!(nock(&Cell((atomsubj.clone(), const8))));
-
-    /*
-
-    // [4 [3 
-    let constfn = Cell((Rc::new(Atom(4)), Rc::new(right)));
-    dbg!(nock(&constfn));
-    dbg!(&constfn);
-    // dbg!(nock(&right));
-    */
+impl Noun {
+  fn to_string(&self) -> String {
+    match self {
+      Atom(a) => format!("{}", a),
+      Cell((ref l, ref r)) => format!("[{} {}]", l.to_string(), r.to_string()),
+    }
+  }
 }
 
-fn nock(n: &Noun) -> Result<Rc<Noun>, &'static str> {
-    match n {
+fn main() {
+  // [4 [1 8]] -> 8
+  // println!("{}
+  // dbg!(nock(noun![4 1 8])).unwrap();
+
+  let n = noun![[9 9] 0 2];
+  println!("{} ->  {:?}", n.to_string(), nock(n).map(|n| n.to_string()));
+  // dbg!(nock(noun![[9 9] 0 2]).map(|n| n.to_string()));
+  // dbg!(format!("{:?}", nock(noun![[9 9] 0 1]).unwrap()));
+
+}
+
+fn nock(n: Rc<Noun>) -> Result<Rc<Noun>, &'static str> {
+    match *n {
         Atom(_) => Err("attempt to evaluate atom"),
-        Cell((subject,formula)) => {
-            match &**formula {
+        Cell((ref subject, ref formula)) => {
+            match **formula {
                 Atom(_) => Err("attempt to apply atom as formula"),
-                Cell((l, r)) => apply(subject.clone(), l.clone(), r.clone()),
+                Cell((ref l, ref r)) => apply(subject.clone(), l.clone(), r.clone()),
             }
         },
     }
@@ -60,7 +60,6 @@ fn apply(subject: Rc<Noun>, head: Rc<Noun>, tail: Rc<Noun>) -> Result<Rc<Noun>, 
       Cell(_) => Err("autocons not implemented"),
       Atom(0) => slot(tail, subject),
       Atom(1) => Ok(tail),
-      // Atom(3) => Ok(Rc::new(Atom(1))),
       Atom(_) => Err("unimplemented opcode"),
     }
 }
@@ -70,6 +69,12 @@ fn slot(address: Rc<Noun>, subject: Rc<Noun>) -> Result<Rc<Noun>, &'static str> 
     Cell(_) => Err("slot addresses must be atoms!"),
     Atom(0) => Err("slot address can't be zero!"),
     Atom(1) => Ok(subject),
+    Atom(2) => {
+      match *subject {
+        Atom(_) => Err("address too deep -- cannot address past an atom"),
+        Cell((ref l,_)) => Ok(l.clone()),
+      }
+    },
     Atom(_) => Err("not yet implemented"),
   }
 }
