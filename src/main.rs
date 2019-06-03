@@ -28,13 +28,6 @@ enum Noun {
 use Noun::*;
 
 impl Noun {
-    fn to_string(&self) -> String {
-        match self {
-            Atom(a) => format!("{}", a),
-            Cell(ref l, ref r) => format!("[{} {}]", l.to_string(), r.to_string()),
-        }
-    }
-
     fn value(&self) -> Result<u128, &'static str> {
         match self {
             Atom(n) => Ok(*n),
@@ -104,19 +97,27 @@ fn edit(subject: &Rc<Noun>, args: &Rc<Noun>) -> EvalResult {
     let address = b.value()?;
     let replacement = apply(subject, c)?;
     let base = apply(subject, d)?;
-    edit_n(address, &base, &replacement)
+    edit_n(address, &replacement, &base)
 }
 
-fn edit_n(address: u128, base: &Rc<Noun>, replacement: &Rc<Noun>) -> EvalResult {
+//                  1
+//          2              3
+//      4       5       6      7
+//    8   9   10 11   12 13  14 15
+
+//   [[[8 9] [10 11]] [[12 13] [14 15]]]
+//   #[1 b c]            b
+//   #[(a + a) b c]      #[a [b /[(a + a + 1) c]] c]
+//   #[(a + a + 1) b c]  #[a [/[(a + a) c] b] c]
+fn edit_n(address: u128, replacement: &Rc<Noun>, base: &Rc<Noun>) -> EvalResult {
     if address == 1 {
         return Ok(replacement.clone());
     }
-    let subtree = edit_n(address / 2, base, replacement)?;
-    let (l, r) = base.open_or("attempt to edit an invalid axis")?;
+
     if address % 2 == 0 {
-        Ok(Rc::new(Cell(subtree, r.clone())))
+        edit_n(address / 2, &Rc::new(Cell(replacement.clone(), slot_n(address+1, base)?)), base)
     } else {
-        Ok(Rc::new(Cell(l.clone(), subtree)))
+        edit_n(address / 2, &Rc::new(Cell(slot_n(address-1, base)?, replacement.clone())), base)
     }
 
 }
@@ -429,17 +430,28 @@ mod tests {
     }
 
 
-    fn hash_to_10(address: u128, replacement: Rc<Noun>, subject: Rc<Noun>) -> Rc<Noun> {
+    fn hash_to_ten(address: u128, replacement: Rc<Noun>, subject: Rc<Noun>) -> Rc<Noun> {
         noun![[replacement subject] 10 [@Rc::new(Atom(address)), [0 2]] [0 3]]
     }
     // 10, edit
     // *[a 10 [b c] d]     #[b *[a c] *[a d]]
     #[test]
     fn nock_10() {
-        // #[2 11 [22 33]] is [11 33]; #[3 11 [22 33]] is [22 11]; #[4 11 [[22 33] 44]] is [[11 33] 44]; and #[5 11 [[22 33] 44]] is [[22 11] 44].
         assert_eq!(
-            nock(&hash_to_10(2, noun![11], noun![22 33])),
+            nock(&hash_to_ten(2, noun![11], noun![22 33])),
                Ok(noun! [11 33])
+        );
+        assert_eq!(
+            nock(&hash_to_ten(3, noun![11], noun![22 33])),
+               Ok(noun! [22 11])
+        );
+        assert_eq!(
+            nock(&hash_to_ten(4, noun![11], noun![[22 33] 44])),
+               Ok(noun! [[11 33] 44])
+        );
+        assert_eq!(
+            nock(&hash_to_ten(5, noun![11], noun![[22 33] 44])),
+               Ok(noun! [[22 11] 44])
         );
     }
 
