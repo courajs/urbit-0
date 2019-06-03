@@ -204,17 +204,16 @@ fn slot(address: &Rc<Noun>, subject: &Rc<Noun>) -> EvalResult {
 }
 
 fn slot_n(address: u128, subject: &Rc<Noun>) -> EvalResult {
-    if address == 1 {
-        return Ok(subject.clone());
+    let mut result = subject;
+    let mut bit_index = 128 - address.leading_zeros() - 1;
+    while bit_index > 0 {
+        let (l,r) = result.open_or("nock 0 error - attempt to address through an atom")?;
+        // 0 = left, 1 = right
+        result = if (address >> (bit_index-1)) & 1 == 0 { l } else { r };
+        bit_index -= 1;
     }
 
-    let new_base = slot_n(address / 2, subject)?;
-    let (l, r) = new_base.open_or("nock 0 error - attempt to address through an atom")?;
-    if address % 2 == 0 {
-        Ok(l.clone())
-    } else {
-        Ok(r.clone())
-    }
+    Ok(result.clone())
 }
 
 
