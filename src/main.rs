@@ -35,6 +35,13 @@ impl Noun {
         }
     }
 
+    fn value(&self) -> Result<u128, &'static str> {
+        match self {
+            Atom(n) => Ok(*n),
+            Cell(_,_) => Err("Expecting atom, got cell"),
+        }
+    }
+
     fn open(&self) -> Result<(&Rc<Noun>,&Rc<Noun>), &'static str> {
         match self {
             Atom(_) => Err("expecting cell, got atom"),
@@ -84,9 +91,36 @@ fn op(instruction: u128, subject: &Rc<Noun>, args: &Rc<Noun>) -> EvalResult {
         7 => macro_seven(subject, args),
         8 => macro_eight(subject, args),
         9 => macro_nine(subject, args),
+        10 => edit(subject, args),
         _ => Err("unimplemented opcode"),
     }
 }
+
+// 10, edit
+// *[a 10 [b c] d]     #[b *[a c] *[a d]]
+fn edit(subject: &Rc<Noun>, args: &Rc<Noun>) -> EvalResult {
+    let (head, d) = args.open()?;
+    let (b, c) = head.open()?;
+    let address = b.value()?;
+    let replacement = apply(subject, c)?;
+    let base = apply(subject, d)?;
+    edit_n(address, &base, &replacement)
+}
+
+fn edit_n(address: u128, base: &Rc<Noun>, replacement: &Rc<Noun>) -> EvalResult {
+    if address == 1 {
+        return Ok(replacement.clone());
+    }
+    let subtree = edit_n(address / 2, base, replacement)?;
+    let (l, r) = base.open_or("attempt to edit an invalid axis")?;
+    if address % 2 == 0 {
+        Ok(Rc::new(Cell(subtree, r.clone())))
+    } else {
+        Ok(Rc::new(Cell(l.clone(), subtree)))
+    }
+
+}
+
 
     // *[a 9 b c]          *[*[a c] 2 [0 1] 0 b]
 fn macro_nine(subject: &Rc<Noun>, args: &Rc<Noun>) -> EvalResult {
@@ -163,14 +197,7 @@ fn slot(address: &Rc<Noun>, subject: &Rc<Noun>) -> EvalResult {
         Cell(_,_) => Err("slot addresses must be atoms!"),
         Atom(0) => Err("slot address can't be zero!"),
         Atom(n) => {
-            let r = slot_n(n, subject);
-            if let Err(_) = r {
-                println!("Error slotting address {} into noun {}", n, subject.to_string());
-                println!("");
-                println!("");
-                println!("r {}", slot_n(3, subject)?.to_string());
-            };
-            r
+            slot_n(n, subject)
         },
     }
 }
