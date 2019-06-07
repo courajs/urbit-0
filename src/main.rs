@@ -6,14 +6,14 @@ use std::rc::Rc;
 
 
 macro_rules! noun {
-    () => {};
-    ($it:literal) => { Rc::new(Noun::Atom($it)) };
-    ($it:literal $($rest:tt)*) => { Rc::new(Noun::Cell(noun!($it), noun!($($rest)*))) };
-    ($it:ident) => { $it.clone() };
-    ($it:ident $($rest:tt)*) => { Rc::new(Noun::Cell($it.clone(), noun!($($rest)*))) };
-    (@$it:expr) => { $it };
-    (@$it:expr, $($rest:tt)*) => { Rc::new(Noun::Cell($it, noun!($($rest)*))) };
-    ([$($sub:tt)*]) => { noun!($($sub)*) };
+    ()                           => {};
+    ($it:literal)                => { Rc::new(Noun::Atom($it)) };
+    ($it:literal $($rest:tt)*)   => { Rc::new(Noun::Cell(noun!($it), noun!($($rest)*))) };
+    ($it:ident)                  => { $it.clone() };
+    ($it:ident $($rest:tt)*)     => { Rc::new(Noun::Cell($it.clone(), noun!($($rest)*))) };
+    (@$it:expr)                  => { $it };
+    (@$it:expr, $($rest:tt)*)    => { Rc::new(Noun::Cell($it, noun!($($rest)*))) };
+    ([$($sub:tt)*])              => { noun!($($sub)*) };
     ([$($sub:tt)*] $($rest:tt)*) => { Rc::new(Noun::Cell(noun!($($sub)*), noun!($($rest)*))) };
     (($($sub:tt)*) $($rest:tt)*) => { noun!([$($sub)*] $($rest)*) };
     ({$($sub:tt)*} $($rest:tt)*) => { noun!([$($sub)*] $($rest)*) };
